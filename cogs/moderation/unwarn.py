@@ -1,14 +1,14 @@
 import disnake
 from disnake.ext import commands
 import sqlite3
-from db_utils import create_tables
+from other.db_utils import create_tables
 from config import moderation_role_id
+from main import author_icon_path
 
 class UnwarnCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = "database.db"
-        self.author_icon_url = "https://cdn.discordapp.com/attachments/1312804207186804810/1334651866276954162/Ban_Hammer.png?ex=67a1ec29&is=67a09aa9&hm=306ff3a184b0814ce8cfd7a932bda2ce1754988c3e3e4f73a4a61cb5ff591238&"
         create_tables(self.db_path)
 
     @commands.slash_command(name="unwarn", description="Снимает предупреждение")
@@ -22,11 +22,11 @@ class UnwarnCog(commands.Cog):
             cursor.execute("DELETE FROM punishments WHERE user_id = ? AND guild_id = ? AND type = ?", (str(member.id), str(inter.guild.id), "warn"))
             conn.commit()
             conn.close()
-            await inter.response.send_message(f"Предупреждения сняты с {member.mention}.", ephemeral=True)
+            file = disnake.File(author_icon_path, filename="hammer.png")
             embed = disnake.Embed(
                 description=f"Пользователю {member.mention} были сняты предупреждения")
-            embed.set_author(name="Снятие наказания", icon_url=self.author_icon_url)
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            embed.set_author(name="Снятие наказания", icon_url=f"attachment://hammer.png")
+            await inter.response.send_message(embed=embed, ephemeral=True, file=file)
         except Exception as e:
             await inter.response.send_message(f"{e}", ephemeral=True)
 
