@@ -33,4 +33,3 @@ class UnmuteCog(commands.Cog):
 
 def setup(bot):
     bot.add_cog(UnmuteCog(bot))
-
