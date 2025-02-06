@@ -17,6 +17,7 @@ sync_flags = CommandSyncFlags.default()
 bot = commands.InteractionBot(intents=intents)
 
 author_icon_path = "images/hammer.png"
+author_icon_path_notif = "images/Notification.png"
 
 def create_db():
     db_path = "database.db"
