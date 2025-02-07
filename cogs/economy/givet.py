@@ -16,6 +16,7 @@ class GivetCog(commands.Cog):
             await inter.response.send_message("У вас нет доступа к этой команде.", ephemeral=True)
             return
 
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
