@@ -11,6 +11,7 @@ class LockCog(commands.Cog):
         if not any(role.id in moderation_role_id for role in inter.author.roles):
             await inter.response.send_message("У вас нет доступа к этой команде.", ephemeral=True)
             return
+
         role = inter.guild.get_role(skip_role_id)
         if not role:
             return
