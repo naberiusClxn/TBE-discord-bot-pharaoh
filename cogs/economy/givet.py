@@ -18,7 +18,6 @@ class GivetCog(commands.Cog):
 
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-
         cursor.execute("""
             INSERT INTO punishments (user_id, guild_id, type, reason, created_at) 
             VALUES (?, ?, 'TOKEN', 'Выдан токен', ?)
