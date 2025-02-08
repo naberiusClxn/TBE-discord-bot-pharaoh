@@ -38,6 +38,15 @@ def create_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS balances (
+            user_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            balance INTEGER DEFAULT 0,
+            PRIMARY KEY (user_id, guild_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
