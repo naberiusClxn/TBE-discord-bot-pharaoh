@@ -47,6 +47,17 @@ def create_db():
         )
     """)
 
+    cursor.execute("""
+           CREATE TABLE IF NOT EXISTS purchases (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               user_id TEXT NOT NULL,
+               guild_id TEXT NOT NULL,
+               item_name TEXT NOT NULL,
+               cost INTEGER NOT NULL,
+               purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+           )
+       """)
+
     conn.commit()
     conn.close()
 
@@ -68,8 +79,36 @@ def load_cogs():
                 except Exception as e:
                     print(f"{cog_path}: {e}")
 
+@bot.slash_command(description="🔄 Перезагрузить все коги (Только для админов)")
+@commands.is_owner()
+async def reload(inter: disnake.ApplicationCommandInteraction):
+    await inter.response.defer()
+
+    reloaded = []
+    failed = []
+
+    for dirpath, _, filenames in os.walk("./cogs"):
+        for filename in filenames:
+            if filename.endswith(".py") and not filename.startswith("_"):
+                cog_path = os.path.relpath(os.path.join(dirpath, filename), start=".").replace(os.sep, ".")[:-3]
+                try:
+                    bot.unload_extension(cog_path)
+                    bot.load_extension(cog_path)
+                    reloaded.append(cog_path)
+                except Exception as e:
+                    failed.append(f"{cog_path}: {e}")
+
+    embed = disnake.Embed(title="🔄 Перезагрузка когов", color=disnake.Color.green())
+    embed.add_field(name="✅ Успешно:", value="\n".join(reloaded) if reloaded else "Нет загруженных когов", inline=False)
+    if failed:
+        embed.add_field(name="❌ Ошибки:", value="\n".join(failed), inline=False)
+
+    await inter.followup.send(embed=embed, ephemeral=True)
+
+
 
 if __name__ == "__main__":
     create_db()
     load_cogs()
     bot.run(TOKEN)
+    
