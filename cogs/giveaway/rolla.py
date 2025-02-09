@@ -22,9 +22,16 @@ class RollaVoiceCog(commands.Cog):
                     creator_id INTEGER,
                     gift TEXT,
                     end_time TEXT,
-                    winner_id INTEGER
+                    winner_id INTEGER,
+                    channel_ids TEXT
                 )
             """)
+
+            cursor.execute("PRAGMA table_info(voice_rolls)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "channel_ids" not in columns:
+                cursor.execute("ALTER TABLE voice_rolls ADD COLUMN channel_ids TEXT")
+
             conn.commit()
 
     async def restore_voice_rolls(self):
@@ -32,19 +39,33 @@ class RollaVoiceCog(commands.Cog):
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, end_time, gift FROM voice_rolls WHERE winner_id IS NULL")
+            cursor.execute("SELECT id, end_time, gift, channel_ids FROM voice_rolls WHERE winner_id IS NULL")
             active_rolls = cursor.fetchall()
 
-        for roll_id, end_time_str, gift in active_rolls:
+        for roll_id, end_time_str, gift, channel_ids_str in active_rolls:
             end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S")
-            remaining_time = max(0, (end_time - datetime.utcnow()).total_seconds())
+            channel_ids = [int(cid) for cid in channel_ids_str.split(",")] if channel_ids_str else []
 
-            async for message in self.bot.get_all_channels():
-                if isinstance(message, disnake.TextChannel):
-                    async for msg in message.history(limit=100):
-                        if msg.embeds and f"**ID:** {roll_id}" in msg.embeds[0].description:
-                            self.bot.loop.create_task(self.end_rolla(roll_id, msg, [], gift))
+
+            found = False
+            for guild in self.bot.guilds:
+                for channel in guild.text_channels:
+                    try:
+                        async for message in channel.history(limit=100):
+                            if message.embeds and message.embeds[0].description and f"**ID:** {roll_id}" in \
+                                    message.embeds[0].description:
+                                self.bot.loop.create_task(self.end_rolla(roll_id, message, channel_ids, gift, end_time))
+                                found = True
+                                break
+                        if found:
                             break
+                    except disnake.Forbidden:
+                        continue
+                if found:
+                    break
+
+            if not found:
+                print(f"Сообщение с розыгрышем ID {roll_id} не найдено.")
 
     @commands.slash_command(description="Раздача среди пользователей в голосовых каналах")
     async def rolla(self, inter: disnake.ApplicationCommandInteraction, duration: int, gift: str, channels: str):
@@ -64,8 +85,8 @@ class RollaVoiceCog(commands.Cog):
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO voice_rolls (creator_id, gift, end_time) VALUES (?, ?, ?)",
-                           (inter.author.id, gift, formatted_time))
+            cursor.execute("INSERT INTO voice_rolls (creator_id, gift, end_time, channel_ids) VALUES (?, ?, ?, ?)",
+                           (inter.author.id, gift, formatted_time, ",".join(map(str, channel_ids))))
             roll_id = cursor.lastrowid
             conn.commit()
 
@@ -79,18 +100,15 @@ class RollaVoiceCog(commands.Cog):
         )
 
         message = await inter.channel.send(embed=embed)
-        self.bot.loop.create_task(self.end_rolla(roll_id, message, channel_ids, gift))
+        self.bot.loop.create_task(self.end_rolla(roll_id, message, channel_ids, gift, end_time))
 
-    async def end_rolla(self, roll_id, message, channel_ids, gift):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT end_time FROM voice_rolls WHERE id = ?", (roll_id,))
-            roll = cursor.fetchone()
-            if not roll:
-                return
+    async def end_rolla(self, roll_id, message, channel_ids, gift, end_time):
+        remaining_time = max(0, (end_time - datetime.utcnow()).total_seconds())
 
-        end_time = datetime.strptime(roll[0], "%Y-%m-%d %H:%M:%S")
-        await asyncio.sleep(max(0, (end_time - datetime.utcnow()).total_seconds()))
+        if remaining_time > 0:
+            print(f"Розыгрыш ID {roll_id} завершится через {remaining_time} секунд.")
+            await asyncio.sleep(remaining_time)
+
         await self.pick_winner(roll_id, message, channel_ids, gift)
 
     async def pick_winner(self, roll_id, message, channel_ids, gift):
@@ -102,7 +120,10 @@ class RollaVoiceCog(commands.Cog):
             if channel and isinstance(channel, disnake.VoiceChannel):
                 participants.extend(member.id for member in channel.members)
 
-        winner_id = random.choice(participants) if participants else None
+        if participants:
+            winner_id = random.choice(participants)
+        else:
+            winner_id = None
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -128,17 +149,24 @@ class RollaVoiceCog(commands.Cog):
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT gift FROM voice_rolls WHERE id = ?", (roll_id,))
+            cursor.execute("SELECT gift, channel_ids FROM voice_rolls WHERE id = ?", (roll_id,))
             roll = cursor.fetchone()
             if not roll:
                 await inter.response.send_message("Розыгрыш с таким ID не найден.", ephemeral=True)
                 return
 
+        gift, channel_ids_str = roll
+        channel_ids = [int(cid) for cid in channel_ids_str.split(",")] if channel_ids_str else []
+
         await inter.response.send_message(f"Розыгрыш ID {roll_id} завершается...", ephemeral=True)
         async for message in inter.channel.history(limit=100):
             if message.embeds and f"**ID:** {roll_id}" in message.embeds[0].description:
-                await self.pick_winner(roll_id, message, [], roll[0])
+                await self.pick_winner(roll_id, message, channel_ids, gift)
                 break
+        else:
+            await inter.followup.send("Сообщение с розыгрышем не найдено.", ephemeral=True)
+
+
 
 
 def setup(bot):

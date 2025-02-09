@@ -24,6 +24,15 @@ class ProfileCog(commands.Cog):
         """, (str(user.id), str(inter.guild.id)))
 
         token_count = cursor.fetchone()[0]
+
+        cursor.execute("""
+                  SELECT balance FROM balances
+                  WHERE user_id = ? AND guild_id = ?
+              """, (str(user.id), str(inter.guild.id)))
+
+        balance_result = cursor.fetchone()
+        balance = balance_result[0] if balance_result else 0
+
         conn.close()
 
         image = Image.open(self.image_path).convert("RGBA")
@@ -59,6 +68,9 @@ class ProfileCog(commands.Cog):
         y = (height - text_height) / 2
 
         draw.text((x + 390, y + 267), text, font=font, fill="white", stroke_width=5, stroke_fill="black")
+
+        balance_text = f"{balance}"
+        draw.text((x - 450, y + 267), balance_text, font=font, fill="white", stroke_width=5, stroke_fill="black")
 
         img_bytes = BytesIO()
         image.save(img_bytes, format="PNG")
