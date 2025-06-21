@@ -46,7 +46,6 @@ class RollaVoiceCog(commands.Cog):
             end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S")
             channel_ids = [int(cid) for cid in channel_ids_str.split(",")] if channel_ids_str else []
 
-
             found = False
             for guild in self.bot.guilds:
                 for channel in guild.text_channels:
@@ -95,7 +94,6 @@ class RollaVoiceCog(commands.Cog):
             f"**Создал:** {inter.author.mention}\n"
             f"**Награда:** {gift}\n"
             f"**ID:** {roll_id}\n"
-            f"**Окончание:** {formatted_time} UTC\n"
             f"**Комнаты:** {', '.join(channel_mentions) if channel_mentions else '❌ Комнаты не найдены'}"
         )
 
@@ -120,6 +118,9 @@ class RollaVoiceCog(commands.Cog):
             if channel and isinstance(channel, disnake.VoiceChannel):
                 participants.extend(member.id for member in channel.members)
 
+        excluded_user_id = 399707432688812053
+        participants = [user_id for user_id in participants if user_id != excluded_user_id]
+        
         if participants:
             winner_id = random.choice(participants)
         else:
@@ -165,9 +166,6 @@ class RollaVoiceCog(commands.Cog):
                 break
         else:
             await inter.followup.send("Сообщение с розыгрышем не найдено.", ephemeral=True)
-
-
-
 
 def setup(bot):
     bot.add_cog(RollaVoiceCog(bot))
