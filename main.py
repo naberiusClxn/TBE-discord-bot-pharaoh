@@ -19,7 +19,8 @@ bot = commands.InteractionBot(intents=intents)
 author_icon_path = "images/hammer.png"
 author_icon_path_notif = "images/Notification.png"
 bat_icon = "images/profile/0Bat.png"
-font_path = "fonts/MachineBT.ttf"
+font_path = "fonts/Montserrat.ttf"
+banner_path = "images/banner.gif"
 
 def create_db():
     db_path = "database.db"
@@ -70,40 +71,23 @@ async def on_ready():
 
 def load_cogs():
     for dirpath, _, filenames in os.walk("./cogs"):
+        if "__pycache__" in dirpath:
+            continue
+
         for filename in filenames:
             if filename.endswith(".py") and not filename.startswith("_"):
                 cog_path = os.path.relpath(os.path.join(dirpath, filename), start=".").replace(os.sep, ".")[:-3]
+
+                if cog_path in bot.extensions:
+                    print(f"⚠️ {cog_path} уже загружен, пропускаем")
+                    continue
+
                 try:
                     bot.load_extension(cog_path)
-                    print(f"{cog_path}")
+                    print(f"✅ {cog_path} загружен")
                 except Exception as e:
-                    print(f"{cog_path}: {e}")
+                    print(f"❌ Ошибка в {cog_path}: {e}")
 
-@bot.slash_command(description="🔄 Перезагрузить все коги (Только для админов)")
-@commands.is_owner()
-async def reload(inter: disnake.ApplicationCommandInteraction):
-    await inter.response.defer()
-
-    reloaded = []
-    failed = []
-
-    for dirpath, _, filenames in os.walk("./cogs"):
-        for filename in filenames:
-            if filename.endswith(".py") and not filename.startswith("_"):
-                cog_path = os.path.relpath(os.path.join(dirpath, filename), start=".").replace(os.sep, ".")[:-3]
-                try:
-                    bot.unload_extension(cog_path)
-                    bot.load_extension(cog_path)
-                    reloaded.append(cog_path)
-                except Exception as e:
-                    failed.append(f"{cog_path}: {e}")
-
-    embed = disnake.Embed(title="🔄 Перезагрузка когов", color=disnake.Color.green())
-    embed.add_field(name="✅ Успешно:", value="\n".join(reloaded) if reloaded else "Нет загруженных когов", inline=False)
-    if failed:
-        embed.add_field(name="❌ Ошибки:", value="\n".join(failed), inline=False)
-
-    await inter.followup.send(embed=embed, ephemeral=True)
 
 
 

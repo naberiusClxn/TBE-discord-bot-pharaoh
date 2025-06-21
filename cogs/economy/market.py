@@ -1,6 +1,7 @@
 import disnake
 from disnake.ext import commands
 import sqlite3
+from config import commands_id
 
 
 class MarketCog(commands.Cog):
@@ -54,11 +55,14 @@ class MarketCog(commands.Cog):
 
     @commands.slash_command(description="Открыть магазин товаров")
     async def market(self, inter: disnake.ApplicationCommandInteraction):
+        if not any(role.id in commands_id for role in inter.author.roles):
+            await inter.response.send_message("У вас нет доступа к этой команде.", ephemeral=True)
+            return
         items = {
             "1%": ("35 монет", "1percent.png", 35),
             "2%": ("60 монет", "2percent.png", 60),
             "3%": ("100 монет", "3percent.png", 100),
-            "Меценат": ("500 монет", "mecenat.png", 500)
+            "Меценат": ("500 монет", "status.png", 500)
         }
 
         embeds = []
