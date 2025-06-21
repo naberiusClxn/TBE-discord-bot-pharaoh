@@ -11,26 +11,34 @@ class GivetCog(commands.Cog):
         self.db_path = "database.db"
 
     @commands.slash_command(description="Выдать токен участнику")
-    async def givet(self, inter: disnake.ApplicationCommandInteraction, user: disnake.Member):
+    async def givet(self, inter: disnake.ApplicationCommandInteraction, user: disnake.Member, amount: int = 1):
         if not any(role.id in moderation_role_id for role in inter.author.roles):
             await inter.response.send_message("У вас нет доступа к этой команде.", ephemeral=True)
             return
 
+        if amount < 1:
+            await inter.response.send_message("Количество токенов должно быть больше 0.", ephemeral=True)
+            return
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO punishments (user_id, guild_id, type, reason, created_at) 
-            VALUES (?, ?, 'TOKEN', 'Выдан токен', ?)
-        """, (str(user.id), str(inter.guild.id), int(datetime.utcnow().timestamp())))
+
+        for _ in range(amount):
+            cursor.execute("""
+                    INSERT INTO punishments (user_id, guild_id, type, reason, created_at) 
+                    VALUES (?, ?, 'TOKEN', 'Выдан токен', ?)
+                """, (str(user.id), str(inter.guild.id), int(datetime.utcnow().timestamp())))
 
         conn.commit()
         conn.close()
 
         file = disnake.File(author_icon_path_notif, filename="Notification.png")
         embed = disnake.Embed(
-            description=f"Токен успешно выдан пользователю {user.mention}!")
+            description=f"{amount} токен(ов) успешно выдано пользователю {user.mention}!"
+        )
         embed.set_author(name="Экономика", icon_url=f"attachment://Notification.png")
         await inter.response.send_message(embed=embed, ephemeral=True, file=file)
+
 
 def setup(bot):
     bot.add_cog(GivetCog(bot))

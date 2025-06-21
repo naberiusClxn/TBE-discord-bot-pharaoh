@@ -1,6 +1,7 @@
 import disnake
 from disnake.ext import commands
 import sqlite3
+from config import commands_id
 
 class BalanceCog(commands.Cog):
     def __init__(self, bot):
@@ -9,6 +10,10 @@ class BalanceCog(commands.Cog):
 
     @commands.slash_command(description="Посмотреть баланс пользователя")
     async def balance(self, inter: disnake.ApplicationCommandInteraction, user: disnake.Member = None):
+        if not any(role.id in commands_id for role in inter.author.roles):
+            await inter.response.send_message("У вас нет доступа к этой команде.", ephemeral=True)
+            return
+
         user = user or inter.author
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
