@@ -126,7 +126,14 @@ class ReportCog(commands.Cog):
             emoji="✅",
             custom_id=f"approve_report_{inter.user.id}_{ticket_channel.id}"
         )
+        deny_button = disnake.ui.Button(
+            style=disnake.ButtonStyle.danger,
+            emoji="❌",
+            custom_id=f"deny_report_{inter.user.id}_{ticket_channel.id}"
+        )
+
         view.add_item(approve_button)
+        view.add_item(deny_button)
 
         await ticket_channel.send(embeds=embeds, view=view)
 
@@ -138,69 +145,90 @@ class ReportCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_button_click(self, inter: disnake.MessageInteraction):
-        if not inter.component.custom_id.startswith("approve_report_"):
-            return
+        if inter.component.custom_id.startswith("approve_report_"):
+            if not any(role.id in moderation_role_id for role in inter.user.roles):
+                await inter.response.send_message("У вас нет прав для выполнения этого действия.", ephemeral=True)
+                return
 
-        if not any(role.id in moderation_role_id for role in inter.user.roles):
-            await inter.response.send_message("У вас нет прав для выполнения этого действия.", ephemeral=True)
-            return
-
-        try:
-            _, _, user_id_str, channel_id_str = inter.component.custom_id.split('_')
-            user_id = int(user_id_str)
-            channel_id = int(channel_id_str)
-        except ValueError:
-            return
-
-        member = inter.guild.get_member(user_id)
-        if not member:
-            await inter.response.send_message("Пользователь не найден.", ephemeral=True)
-            return
-
-        role = inter.guild.get_role(report_role_id)
-        if not role:
-            await inter.response.send_message("Роль для выдачи не найдена.", ephemeral=True)
-            return
-
-        end_time = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-
-        self.cursor.execute('SELECT role_end_time FROM role_timers WHERE user_id = ?', (user_id,))
-        existing = self.cursor.fetchone()
-
-        if existing and existing[0]:
             try:
-                current_end = datetime.datetime.fromisoformat(existing[0])
-                new_end = current_end + datetime.timedelta(hours=24)
-                end_time = new_end
-                action = "продлена"
-            except (TypeError, ValueError):
+                _, _, user_id_str, channel_id_str = inter.component.custom_id.split('_')
+                user_id = int(user_id_str)
+                channel_id = int(channel_id_str)
+            except ValueError:
+                return
+
+            member = inter.guild.get_member(user_id)
+            if not member:
+                await inter.response.send_message("Пользователь не найден.", ephemeral=True)
+                return
+
+            role = inter.guild.get_role(report_role_id)
+            if not role:
+                await inter.response.send_message("Роль для выдачи не найдена.", ephemeral=True)
+                return
+
+            end_time = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+
+            self.cursor.execute('SELECT role_end_time FROM role_timers WHERE user_id = ?', (user_id,))
+            existing = self.cursor.fetchone()
+
+            if existing and existing[0]:
+                try:
+                    current_end = datetime.datetime.fromisoformat(existing[0])
+                    new_end = current_end + datetime.timedelta(hours=24)
+                    end_time = new_end
+                    action = "продлена"
+                except (TypeError, ValueError):
+                    action = "выдана"
+            else:
                 action = "выдана"
-        else:
-            action = "выдана"
 
-        try:
-            await member.add_roles(role, reason=f"Роль выдана/продлена модератором {inter.user}")
-        except disnake.HTTPException:
-            await inter.response.send_message("Не удалось выдать роль.", ephemeral=True)
+            try:
+                await member.add_roles(role, reason=f"Роль выдана/продлена модератором {inter.user}")
+            except disnake.HTTPException:
+                await inter.response.send_message("Не удалось выдать роль.", ephemeral=True)
+                return
+
+            self.cursor.execute('''
+            INSERT OR REPLACE INTO role_timers (user_id, role_end_time, channel_id) 
+            VALUES (?, ?, ?)
+            ''', (user_id, end_time.isoformat(), channel_id))
+            self.conn.commit()
+
+            channel = inter.guild.get_channel(channel_id)
+            if channel:
+                try:
+                    await channel.delete(reason="Тикет закрыт модератором")
+                except disnake.HTTPException:
+                    pass
+
+            await inter.response.send_message(
+                f"Роль {role.mention} {action} пользователю {member.mention} до {end_time.strftime('%Y-%m-%d %H:%M')} UTC. Канал удален.",
+                ephemeral=True
+            )
             return
 
-        self.cursor.execute('''
-        INSERT OR REPLACE INTO role_timers (user_id, role_end_time, channel_id) 
-        VALUES (?, ?, ?)
-        ''', (user_id, end_time.isoformat(), channel_id))
-        self.conn.commit()
+        if inter.component.custom_id.startswith("deny_report_"):
+            if not any(role.id in moderation_role_id for role in inter.user.roles):
+                await inter.response.send_message("У вас нет прав для выполнения этого действия.", ephemeral=True)
+                return
 
-        channel = inter.guild.get_channel(channel_id)
-        if channel:
             try:
-                await channel.delete(reason="Тикет закрыт модератором")
-            except disnake.HTTPException:
-                pass
+                _, _, user_id_str, channel_id_str = inter.component.custom_id.split('_')
+                user_id = int(user_id_str)
+                channel_id = int(channel_id_str)
+            except ValueError:
+                return
 
-        await inter.response.send_message(
-            f"Роль {role.mention} {action} пользователю {member.mention} до {end_time.strftime('%Y-%m-%d %H:%M')} UTC. Канал удален.",
-            ephemeral=True
-        )
+            channel = inter.guild.get_channel(channel_id)
+            if channel:
+                try:
+                    await channel.delete(reason="Тикет отклонён модератором без выдачи роли")
+                except disnake.HTTPException:
+                    pass
+
+            await inter.response.send_message("Тикет был закрыт без выдачи роли.", ephemeral=True)
+            return
 
     def cog_unload(self):
         self.check_expired_roles.cancel()
