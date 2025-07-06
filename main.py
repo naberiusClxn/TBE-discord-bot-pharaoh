@@ -5,6 +5,9 @@ import os
 import sqlite3
 from dotenv import load_dotenv
 
+from rent.buttons.RentButtonView import RentButtonView, RentModerationView
+from rent.database.database_util import get_all_rent_channels
+
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
@@ -65,6 +68,9 @@ def create_db():
 
 @bot.event
 async def on_ready():
+    bot.add_view(RentButtonView())
+    for channel_id in get_all_rent_channels():
+        bot.add_view(RentModerationView(channel_id))
     print(f"{bot.user}")
     create_db()
 
