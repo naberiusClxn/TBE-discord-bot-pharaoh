@@ -12,3 +12,9 @@ ticket_category_id = 1386039003219890176
 
 report_role_id = 1386076691071238214
 created_reports_role_id = [1263065491925106688]
+
+worker_role_id = [1263065491925106688]
+
+category_rent = 1385155739009552495
+category_rent_apply = 1391430198364471356
+rent_role_id = 1391431120939253893
