@@ -5,12 +5,15 @@ import os
 import sqlite3
 from dotenv import load_dotenv
 
+from other.db_utils import init_database
 from rent.buttons.RentButtonView import RentButtonView, RentModerationView
 from rent.database.database_util import get_all_rent_channels
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
+API_KEY = os.getenv("API_KEY")
+STEAM_API_KEY = os.getenv("STEAM_API_KEY")
 
 intents = disnake.Intents.default()
 intents.members = True
@@ -98,6 +101,7 @@ def load_cogs():
 
 
 if __name__ == "__main__":
+    init_database()
     create_db()
     load_cogs()
     bot.run(TOKEN)
